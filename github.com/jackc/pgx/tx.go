@@ -118,7 +118,6 @@ func (tx *Tx) Commit() error {
 
 // CommitEx commits the transaction with a context.
 func (tx *Tx) CommitEx(ctx context.Context) error {
-
 	if tx == nil {
 		return nil
 	}
@@ -186,7 +185,6 @@ func (tx *Tx) Exec(sql string, arguments ...interface{}) (commandTag CommandTag,
 
 // ExecEx delegates to the underlying *Conn
 func (tx *Tx) ExecEx(ctx context.Context, sql string, options *QueryExOptions, arguments ...interface{}) (commandTag CommandTag, err error) {
-	// jenndebug
 	if tx == nil {
 		return CommandTag(""), nil
 	}

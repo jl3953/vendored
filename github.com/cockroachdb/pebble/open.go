@@ -65,6 +65,7 @@ func Open(dirname string, opts *Options) (db *DB, _ error) {
 		abbreviatedKey:      opts.Comparer.AbbreviatedKey,
 		largeBatchThreshold: (opts.MemTableSize - int(memTableEmptySize)) / 2,
 		logRecycler:         logRecycler{limit: opts.MemTableStopWritesThreshold + 1},
+		closedCh:            make(chan struct{}),
 	}
 
 	defer func() {
@@ -229,6 +230,13 @@ func Open(dirname string, opts *Options) (db *DB, _ error) {
 		if !ok {
 			continue
 		}
+
+		// Don't reuse any obsolete file numbers to avoid modifying an
+		// ingested sstable's original external file.
+		if d.mu.versions.nextFileNum <= fn {
+			d.mu.versions.nextFileNum = fn + 1
+		}
+
 		switch ft {
 		case fileTypeLog:
 			if fn >= d.mu.versions.minUnflushedLogNum {

@@ -196,6 +196,10 @@ type Batch struct {
 	// data whenever Repr() is called.
 	count uint64
 
+	// The count of range deletions in the batch. Updated every time a range
+	// deletion is added.
+	countRangeDels uint64
+
 	// A deferredOp struct, stored in the Batch so that a pointer can be returned
 	// from the *Deferred() methods rather than a value.
 	deferredOp DeferredBatchOp
@@ -296,12 +300,16 @@ func (b *Batch) refreshMemTableSize() {
 		return
 	}
 
+	b.countRangeDels = 0
 	for r := b.Reader(); ; {
-		_, key, value, ok := r.Next()
+		kind, key, value, ok := r.Next()
 		if !ok {
 			break
 		}
 		b.memTableSize += memTableEntrySize(len(key), len(value))
+		if kind == InternalKeyKindRangeDelete {
+			b.countRangeDels++
+		}
 	}
 }
 
@@ -333,6 +341,9 @@ func (b *Batch) Apply(batch *Batch, _ *WriteOptions) error {
 			kind, key, value, ok := iter.Next()
 			if !ok {
 				break
+			}
+			if kind == InternalKeyKindRangeDelete {
+				b.countRangeDels++
 			}
 			if b.index != nil {
 				var err error
@@ -594,6 +605,7 @@ func (b *Batch) DeleteRange(start, end []byte, _ *WriteOptions) error {
 // with the end key.
 func (b *Batch) DeleteRangeDeferred(startLen, endLen int) *DeferredBatchOp {
 	b.prepareDeferredKeyValueRecord(startLen, endLen, InternalKeyKindRangeDelete)
+	b.countRangeDels++
 	if b.index != nil {
 		b.tombstones = nil
 		// Range deletions are rare, so we lazily allocate the index for them.
@@ -743,12 +755,14 @@ func (b *Batch) init(cap int) {
 	b.data = b.data[:batchHeaderLen]
 }
 
-// Reset clears the underlying byte slice and effectively empties the batch for
-// reuse. Used in cases where Batch is only being used to build a batch, and
-// where the end result is a Repr() call, not a Commit call or a Close call.
-// Commits and Closes take care of releasing resources when appropriate.
+// Reset resets the batch for reuse. The underlying byte slice (that is
+// returned by Repr()) is not modified. It is only necessary to call this
+// method if a batch is explicitly being reused. Close automatically takes are
+// of releasing resources when appropriate for batches that are internally
+// being reused.
 func (b *Batch) Reset() {
 	b.count = 0
+	b.countRangeDels = 0
 	if b.data != nil {
 		if cap(b.data) > batchMaxRetainedSize {
 			// If the capacity of the buffer is larger than our maximum
@@ -826,21 +840,21 @@ func (b *Batch) Reader() BatchReader {
 func batchDecodeStr(data []byte) (odata []byte, s []byte, ok bool) {
 	var v uint32
 	var n int
-	src := (*[5]uint8)(unsafe.Pointer(&data[0]))
-	if a := (*src)[0]; a < 128 {
+	ptr := unsafe.Pointer(&data[0])
+	if a := *((*uint8)(ptr)); a < 128 {
 		v = uint32(a)
 		n = 1
-	} else if a, b := a&0x7f, (*src)[1]; b < 128 {
+	} else if a, b := a&0x7f, *((*uint8)(unsafe.Pointer(uintptr(ptr) + 1))); b < 128 {
 		v = uint32(b)<<7 | uint32(a)
 		n = 2
-	} else if b, c := b&0x7f, (*src)[2]; c < 128 {
+	} else if b, c := b&0x7f, *((*uint8)(unsafe.Pointer(uintptr(ptr) + 2))); c < 128 {
 		v = uint32(c)<<14 | uint32(b)<<7 | uint32(a)
 		n = 3
-	} else if c, d := c&0x7f, (*src)[3]; d < 128 {
+	} else if c, d := c&0x7f, *((*uint8)(unsafe.Pointer(uintptr(ptr) + 3))); d < 128 {
 		v = uint32(d)<<21 | uint32(c)<<14 | uint32(b)<<7 | uint32(a)
 		n = 4
 	} else {
-		d, e := d&0x7f, (*src)[4]
+		d, e := d&0x7f, *((*uint8)(unsafe.Pointer(uintptr(ptr) + 4)))
 		v = uint32(e)<<28 | uint32(d)<<21 | uint32(c)<<14 | uint32(b)<<7 | uint32(a)
 		n = 5
 	}
