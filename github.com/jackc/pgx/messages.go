@@ -2,6 +2,8 @@ package pgx
 
 import (
 	"database/sql/driver"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
+	"golang.org/x/net/context"
 	"math"
 	"reflect"
 	"time"
@@ -198,6 +200,7 @@ func appendBind(
 	}
 	pgio.SetInt32(buf[sp:], int32(len(buf[sp:])))
 
+	log.Warningf(context.Background(), "jenndebugjack buf:[%+v]", buf)
 	return buf, nil
 }
 

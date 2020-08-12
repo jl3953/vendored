@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"io"
 	"io/ioutil"
 	"math"
@@ -2142,12 +2143,14 @@ func (c *Conn) execEx(ctx context.Context, sql string, options *QueryExOptions, 
 	}()
 
 	if (options == nil && c.config.PreferSimpleProtocol) || (options != nil && options.SimpleProtocol) {
+		log.Warningf(ctx, "jenndebugjack sanitizeAndSimple sql:[%s], arguments:[%+v]", sql, arguments)
 		c.lastStmtSent = true
 		err = c.sanitizeAndSendSimpleQuery(sql, arguments...)
 		if err != nil {
 			return "", err
 		}
 	} else if options != nil && len(options.ParameterOIDs) > 0 {
+		log.Warningf(ctx, "jenndebugjack options sql:[%s], arguments:[%+v]", sql, arguments)
 		if err := c.ensureConnectionReadyForQuery(); err != nil {
 			return "", err
 		}
@@ -2167,6 +2170,7 @@ func (c *Conn) execEx(ctx context.Context, sql string, options *QueryExOptions, 
 		}
 		c.pendingReadyForQueryCount++
 	} else {
+		log.Warningf(ctx, "jenndebugjack else sql:[%s], arguments:[%+v]", sql, arguments)
 		if len(arguments) > 0 {
 			ps, ok := c.preparedStatements[sql]
 			if !ok {
