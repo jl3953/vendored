@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"io"
 	"time"
 
@@ -186,7 +185,6 @@ func (tx *Tx) Exec(sql string, arguments ...interface{}) (commandTag CommandTag,
 
 // ExecEx delegates to the underlying *Conn
 func (tx *Tx) ExecEx(ctx context.Context, sql string, options *QueryExOptions, arguments ...interface{}) (commandTag CommandTag, err error) {
-	log.Warningf(ctx, "jenndebugjack sql:[%s], arguments:[%+v]", sql, arguments)
 	if tx == nil {
 		return CommandTag(""), nil
 	}
