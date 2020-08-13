@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"io"
 	"io/ioutil"
 	"math"
